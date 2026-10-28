@@ -31,6 +31,66 @@ export async function createOnlineApi(url, key) {
   let channel = null;
   let ready = false;
   let pending = null;
+  let listeners = null;
+  let lastTrackAt = -1e9;
+  let trackTimer = null;
+  let rejoinTimer = null;
+  let rejoinDelay = 1000;
+  const PRESENCE_MIN_MS = 3000;
+
+  function flushPresence() {
+    if (!ready || !channel || !pending || trackTimer) return;
+    const wait = PRESENCE_MIN_MS - (performance.now() - lastTrackAt);
+    if (wait > 0) { trackTimer = setTimeout(() => { trackTimer = null; flushPresence(); }, wait); return; }
+    lastTrackAt = performance.now();
+    channel.track(pending);
+  }
+
+  // (Re)join the shared channel. If Supabase ever closes it, or the
+  // connection drops, try again with a growing delay (1 s, 2 s, 4 s … 30 s).
+  function join() {
+    clearTimeout(rejoinTimer);
+    rejoinTimer = null;
+    ready = false;
+    const ch = sb.channel('world', { config: { presence: { key: uid }, broadcast: { self: false } } });
+    channel = ch;
+    ch.on('presence', { event: 'sync' }, () => {
+      if (ch !== channel) return;
+      const st = ch.presenceState();
+      const others = [];
+      for (const [id, metas] of Object.entries(st)) {
+        if (id === uid || !metas.length) continue;
+        const m = metas[metas.length - 1];
+        others.push({ id, name: String(m.name || 'walker').slice(0, 20), square: Math.max(1, m.square | 0), equipped: m.equipped || {} });
+      }
+      listeners.onChange(others);
+    });
+    ch.on('broadcast', { event: 'pos' }, ({ payload }) => {
+      if (ch !== channel || !payload || payload.id === uid) return;
+      listeners.onMove({ id: String(payload.id), square: Math.max(1, payload.square | 0), dir: Math.sign(payload.dir | 0) });
+    });
+    ch.subscribe((status, err) => {
+      if (ch !== channel) return;
+      if (status === 'SUBSCRIBED') {
+        ready = true;
+        rejoinDelay = 1000;
+        lastTrackAt = -1e9; // announce ourselves right away after (re)joining
+        flushPresence();
+        return;
+      }
+      // CHANNEL_ERROR, TIMED_OUT or CLOSED: we are invisible until we rejoin
+      console.warn('Realtime channel', status, err ? err.message || err : '', '- rejoining in', rejoinDelay, 'ms');
+      ready = false;
+      if (rejoinTimer) return;
+      rejoinTimer = setTimeout(async () => {
+        rejoinTimer = null;
+        if (channel === ch) channel = null; // so removing it doesn't trigger another rejoin
+        try { await sb.removeChannel(ch); } catch {}
+        join();
+      }, rejoinDelay);
+      rejoinDelay = Math.min(rejoinDelay * 2, 30000);
+    });
+  }
 
   return {
     mode: 'online',
@@ -77,28 +137,25 @@ export async function createOnlineApi(url, key) {
     equip: (slot, itemId) => rpc('equip_item', { p_slot: slot, p_item: itemId || null }),
     setName: (name) => rpc('set_display_name', { p_name: name }),
 
-    // Realtime presence: everyone online shares one channel for now.
+    // Realtime: everyone online shares one channel for now.
+    //  - presence  = who is online, their name, cosmetics and resting square
+    //  - broadcast = fast movement updates while someone is walking
     // (When you have lots of players, split it into zones, e.g. one
     // channel per 500 squares, and join your zone + the neighbours.)
-    joinPresence(onChange) {
-      channel = sb.channel('world', { config: { presence: { key: uid } } });
-      channel.on('presence', { event: 'sync' }, () => {
-        const st = channel.presenceState();
-        const others = [];
-        for (const [id, metas] of Object.entries(st)) {
-          if (id === uid || !metas.length) continue;
-          const m = metas[metas.length - 1];
-          others.push({ id, name: String(m.name || 'walker').slice(0, 20), square: m.square | 0, equipped: m.equipped || {} });
-        }
-        onChange(others);
-      });
-      channel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') { ready = true; if (pending) channel.track(pending); }
-      });
+    joinPresence(onChange, onMove) {
+      listeners = { onChange, onMove };
+      join();
     },
+    // Presence is rate-limited by Supabase per player. Going over makes
+    // Supabase close our channel, and we vanish for everyone. So presence is
+    // sent at most once every PRESENCE_MIN_MS (the latest value wins), and
+    // walking itself goes over broadcast instead.
     updatePresence(payload) {
       pending = payload;
-      if (ready && channel) channel.track(payload);
+      flushPresence();
+    },
+    sendPosition({ square, dir }) {
+      if (ready && channel) channel.send({ type: 'broadcast', event: 'pos', payload: { id: uid, square, dir } });
     },
 
     // Guest → permanent: keeps the same user id, so all progress stays.

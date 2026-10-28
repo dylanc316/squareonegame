@@ -30,7 +30,15 @@ function toast(msg, isErr = false) {
   const el = document.createElement('div');
   el.className = 'toast' + (isErr ? ' err' : '');
   el.textContent = msg;
-  $('toasts').appendChild(el);
+  // An open dialog sits above everything else on the page, so put the
+  // notice inside the dialog when one is open, or it would be hidden.
+  const dlg = document.querySelector('dialog[open]');
+  let box = $('toasts');
+  if (dlg) {
+    box = dlg.querySelector('.toasts');
+    if (!box) { box = document.createElement('div'); box.className = 'toasts'; dlg.append(box); }
+  }
+  box.appendChild(el);
   setTimeout(() => el.remove(), 3200);
 }
 const errMsg = (e) => (e && e.message ? e.message : String(e));
@@ -548,20 +556,16 @@ async function openAccount() {
     box.innerHTML = `<p><b>You're playing as a guest.</b> Your progress is saved in this browser. Add your email to keep your walker if you switch devices or clear your browser.</p>
       ${acct.pendingEmail ? '<p class="small">We sent a confirmation link to <b id="pendingEmail"></b>. Click it to finish.</p>' : ''}
       <div class="row"><input id="linkEmail" type="email" placeholder="you@example.com" /><button class="btn primary" id="linkBtn">Save my walker</button></div>
+      <div class="acct-status" id="linkStatus" role="status"></div>
       <p class="small" style="margin-top:14px">Already have a walker on another device?</p>
       <div class="row"><input id="signEmail" type="email" placeholder="you@example.com" /><button class="btn" id="signBtn">Email me a sign-in link</button></div>
+      <div class="acct-status" id="signStatus" role="status"></div>
       <p class="small" style="margin-top:6px">Signing in switches to that walker. This guest's progress stays behind.</p>`;
     if (acct.pendingEmail) box.querySelector('#pendingEmail').textContent = acct.pendingEmail;
-    box.querySelector('#linkBtn').onclick = async () => {
-      const email = box.querySelector('#linkEmail').value.trim();
-      if (!email) return;
-      try { await api.linkEmail(email); toast('Check your inbox for a confirmation link!'); } catch (e) { toast(errMsg(e), true); }
-    };
-    box.querySelector('#signBtn').onclick = async () => {
-      const email = box.querySelector('#signEmail').value.trim();
-      if (!email) return;
-      try { await api.signIn(email); toast('Sign-in link sent. Open it on this device.'); } catch (e) { toast(errMsg(e), true); }
-    };
+    wireEmailButton(box, '#linkEmail', '#linkBtn', '#linkStatus', (email) => api.linkEmail(email),
+      (email) => `Sent! Open the email we sent to ${email} and click the confirmation link. It can take a minute, and check your spam folder too.`);
+    wireEmailButton(box, '#signEmail', '#signBtn', '#signStatus', (email) => api.signIn(email),
+      (email) => `Sent! Open the email we sent to ${email} on this device and click the link to sign in.`);
   } else {
     box.innerHTML = `<p>Signed in as <b></b>. Your walker is saved to your account.</p><button class="btn small" id="signOut">Sign out</button>`;
     box.querySelector('b').textContent = acct.email;
@@ -577,6 +581,39 @@ async function openAccount() {
   body.innerHTML = '';
   body.append(box);
 }
+function friendlyAuthError(m) {
+  if (/signups? not allowed/i.test(m)) return 'No walker is saved with that email yet. Use "Save my walker" above to attach it to this one.';
+  if (/rate limit|too many|security purposes/i.test(m)) return 'Too many emails sent just now. Please wait a minute and try again.';
+  if (/already (been )?registered|already exists/i.test(m)) return 'That email already belongs to another walker. Use the sign-in link below instead.';
+  if (/invalid/i.test(m) && /email/i.test(m)) return 'That email address doesn\'t look right.';
+  return m;
+}
+
+// Email buttons show their progress right under the button.
+function wireEmailButton(box, inputSel, btnSel, statusSel, send, okText) {
+  const input = box.querySelector(inputSel), btn = box.querySelector(btnSel), status = box.querySelector(statusSel);
+  const label = btn.textContent;
+  const show = (text, kind) => { status.textContent = text; status.className = 'acct-status ' + kind; };
+  const go = async () => {
+    const email = input.value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { show('Please enter a valid email address.', 'err'); input.focus(); return; }
+    btn.disabled = input.disabled = true;
+    btn.textContent = 'Sending…';
+    show('', '');
+    try {
+      await send(email);
+      show(okText(email), 'ok');
+      btn.textContent = 'Send again';
+    } catch (e) {
+      show(friendlyAuthError(errMsg(e)), 'err');
+      btn.textContent = label;
+    }
+    btn.disabled = input.disabled = false;
+  };
+  btn.onclick = go;
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+}
+
 async function saveName() {
   try {
     me = { ...me, ...(await api.setName($('nameInput').value)), current_square: pos };

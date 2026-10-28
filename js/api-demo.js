@@ -110,6 +110,17 @@ export function createDemoApi() {
       return out;
     },
 
+    async leaderboard() {
+      const p = P();
+      const fake = ['pebble', 'marlo', 'juniper', 'ozzie', 'trailblazer', 'sockfoot', 'wendy_walks', 'ramble_on', 'nomad', 'kip']
+        .map((name, i) => ({ display_name: name, saved_square: [3600, 2500, 1600, 1600, 900, 900, 400, 400, 100, 100][i], saved_at: new Date(Date.now() - (i + 1) * 86400e3).toISOString(), is_me: false }));
+      const all = p.saved_square > 1 ? [...fake, { display_name: p.display_name, saved_square: p.saved_square, saved_at: new Date().toISOString(), is_me: true }] : fake;
+      all.sort((a, b) => b.saved_square - a.saved_square || a.saved_at.localeCompare(b.saved_at));
+      const rows = all.slice(0, 100).map((r, i) => ({ ...r, rank: i + 1 }));
+      const mine = all.findIndex((r) => r.is_me);
+      return delay({ rows, myRank: mine >= 0 ? mine + 1 : null });
+    },
+
     async shopItems() { return SHOP_ITEMS; },
     async buy(itemId) {
       const p = P();

@@ -88,16 +88,34 @@ async function boot() {
   $('hud').hidden = false;
   if (window.innerWidth > 900) openComments();
 
-  api.joinPresence((list) => {
-    const seen = new Set();
-    for (const o of list) {
-      seen.add(o.id);
-      const cur = others.get(o.id);
-      if (cur) Object.assign(cur, o);
-      else others.set(o.id, { ...o, dispU: o.square, color: colorFor(o.id), facing: 1, phase: 0, lat: ((parseInt(colorFor(o.id).slice(1, 3), 16) % 5) - 2) * 14 || 14 });
-    }
-    for (const id of others.keys()) if (!seen.has(id)) others.delete(id);
-  });
+  api.joinPresence(
+    // who is online (plus names and cosmetics), updated every second or so
+    (list) => {
+      const now = performance.now();
+      const seen = new Set();
+      for (const o of list) {
+        seen.add(o.id);
+        const cur = others.get(o.id);
+        if (cur) {
+          cur.name = o.name;
+          cur.equipped = o.equipped;
+          // presence positions are slow; only use them if no fast update came recently
+          if (!cur.movedAt || now - cur.movedAt > 3000) { cur.square = o.square; cur.dir = 0; }
+        } else {
+          others.set(o.id, { ...o, dir: 0, at: now, dispU: o.square, color: colorFor(o.id), facing: 1, phase: 0, lat: ((parseInt(colorFor(o.id).slice(1, 3), 16) % 5) - 2) * 14 || 14 });
+        }
+      }
+      for (const id of others.keys()) if (!seen.has(id)) others.delete(id);
+    },
+    // fast movement updates, several times a second while someone walks
+    (m) => {
+      const o = others.get(m.id);
+      if (!o) return;
+      o.square = m.square;
+      o.dir = m.dir;
+      o.at = o.movedAt = performance.now();
+    },
+  );
   sendPresence();
 
   bindInput();
@@ -123,6 +141,7 @@ function tryStep(d) {
 
 function onMoved(initial) {
   scheduleReport();
+  schedulePos();
   schedulePresence();
   maybeFetchCounts();
   scheduleCommentsLoad();
@@ -139,6 +158,7 @@ function frame(t) {
 
   const dir = held.length ? held[held.length - 1] : 0;
   if (dir && now >= nextStepAt && !anyDialogOpen()) { tryStep(dir); nextStepAt = now + STEP_MS; }
+  if (walkingDir() !== lastSentDir) sendPos();
 
   const before = dispU;
   dispU += (pos - dispU) * Math.min(1, dt * 14);
@@ -148,10 +168,13 @@ function frame(t) {
   const view = [];
   for (const o of others.values()) {
     const prev = o.dispU;
-    o.dispU += (o.square - o.dispU) * Math.min(1, dt * 8);
-    if (Math.abs(o.square - o.dispU) > 30) o.dispU = o.square;
+    // keep them walking between updates in the direction they were going
+    const ahead = o.dir ? o.dir * (1000 / STEP_MS) * Math.min((now - (o.at || now)) / 1000, 0.35) : 0;
+    const target = Math.max(1, o.square + ahead);
+    o.dispU += (target - o.dispU) * Math.min(1, dt * 12);
+    if (Math.abs(target - o.dispU) > 30) o.dispU = target;
     const moved = o.dispU - prev;
-    if (Math.abs(moved) > 0.002) { o.phase += dt * 16; o.facing = moved > 0 ? 1 : -1; } else o.phase *= 0.85;
+    if (Math.abs(moved) > 0.002) { o.phase += dt * 16; o.facing = o.dir || (moved > 0 ? 1 : -1); } else o.phase *= 0.85;
     if (Math.abs(o.dispU - dispU) <= NEARBY_RANGE + 6) view.push(o);
   }
 
@@ -256,9 +279,32 @@ async function syncNow() {
   if (pos !== lastReported) await flushReport();
 }
 
+// Fast position updates (broadcast): first step goes out immediately,
+// then at most one every POS_MS while walking.
+const POS_MS = 160;
+let posTimer = null;
+let lastPosAt = -1e9;
+let lastSentDir = 0;
+const walkingDir = () => (held.length && !anyDialogOpen() && !(pos <= 1 && held[held.length - 1] < 0) ? held[held.length - 1] : 0);
+function schedulePos() {
+  if (posTimer) return;
+  const wait = POS_MS - (performance.now() - lastPosAt);
+  if (wait <= 0) sendPos();
+  else posTimer = setTimeout(() => { posTimer = null; sendPos(); }, wait);
+}
+function sendPos() {
+  clearTimeout(posTimer);
+  posTimer = null;
+  lastPosAt = performance.now();
+  lastSentDir = walkingDir();
+  api.sendPosition({ square: pos, dir: lastSentDir });
+}
+
+// Presence (who's online, name, cosmetics, resting square): occasional
 let presenceTimer = null;
 function schedulePresence() {
-  if (!presenceTimer) presenceTimer = setTimeout(() => { presenceTimer = null; sendPresence(); }, 300);
+  clearTimeout(presenceTimer);
+  presenceTimer = setTimeout(sendPresence, 1200);
 }
 function sendPresence() {
   api.updatePresence({ name: me.display_name, square: pos, equipped: equippedOf(me) });

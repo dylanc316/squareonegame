@@ -176,6 +176,10 @@ kbd {
 .acct { background: #faf7fd; border-radius: 14px; padding: 12px 14px; font-size: 15px; margin-top: 10px; }
 .acct p { margin: 0 0 10px; }
 .acct .small { font-size: 13px; color: var(--muted); }
+.acct-status { font-size: 14px; line-height: 1.35; margin-top: 8px; padding: 8px 10px; border-radius: 10px; }
+.acct-status:empty { display: none; }
+.acct-status.ok { background: #e6f6ec; color: #1f7a47; }
+.acct-status.err { background: #fdecee; color: #b8323c; }
 
 /* ---------- toasts ---------- */
 .toasts { position: fixed; top: 140px; left: 50%; transform: translateX(-50%); display: grid; gap: 8px; z-index: 60; pointer-events: none; }

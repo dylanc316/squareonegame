@@ -63,6 +63,11 @@ export async function createOnlineApi(url, key) {
       return out;
     },
 
+    async leaderboard() {
+      const [rows, rank] = await Promise.all([rpc('leaderboard'), rpc('my_rank')]);
+      return { rows: rows || [], myRank: rank };
+    },
+
     async shopItems() {
       const { data, error } = await sb.from('shop_items').select('id, name, slot, price').order('sort');
       if (error) throw new Error(error.message);

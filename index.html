@@ -27,6 +27,7 @@
     </div>
     <div class="hud-buttons">
       <button class="btn" id="btnComments" title="Comments on this square (C)">Notes <span class="pill" id="cBadge">0</span></button>
+      <button class="btn" id="btnBoard" title="Leaderboard">Top 100</button>
       <button class="btn" id="btnShop">Shop</button>
       <button class="btn" id="btnAccount">You</button>
       <button class="btn icon" id="btnOrient" title="Switch between left-right and up-down">⇅</button>
@@ -98,6 +99,15 @@
     <div class="dlg-foot"><button class="btn" id="shopClose">Done</button></div>
   </dialog>
 
+  <!-- Leaderboard -->
+  <dialog id="boardDlg" class="dlg">
+    <h2>Top 100</h2>
+    <p class="sub">Ranked by the furthest checkpoint beaten. Ties go to whoever got there first.</p>
+    <div class="board-me" id="boardMe"></div>
+    <div class="board" id="boardList"></div>
+    <div class="dlg-foot"><button class="btn" id="boardClose">Done</button></div>
+  </dialog>
+
   <!-- Account -->
   <dialog id="acctDlg" class="dlg">
     <h2>Your walker</h2>
@@ -112,5 +122,16 @@
   <div class="demo-badge" id="demoBadge" hidden>Demo mode · saved in this browser only</div>
 
   <script type="module" src="/js/main.js"></script>
+  <script>
+    // If the game code fails to load, say so instead of spinning forever.
+    window.addEventListener('error', function (e) {
+      var box = document.getElementById('loading');
+      if (!box) return;
+      if (!e.message && !(e.target && e.target.tagName === 'SCRIPT')) return; // ignore fonts/images
+      box.classList.add('error');
+      box.innerHTML = '<h2>The game failed to load</h2><p></p>';
+      box.querySelector('p').textContent = (e.message || ('Could not load ' + e.target.src)) + ' (open the browser console for details)';
+    }, true);
+  </script>
 </body>
 </html>

@@ -538,6 +538,51 @@ async function shopAction(fn, okMsg) {
   } catch (e) { toast(errMsg(e), true); }
 }
 
+// ---------------- leaderboard ----------------
+async function openBoard() {
+  held.length = 0;
+  const list = $('boardList'), mine = $('boardMe');
+  list.innerHTML = '<div class="board-empty">Loading…</div>';
+  mine.textContent = '';
+  $('boardDlg').showModal();
+  let data;
+  try { data = await api.leaderboard(); }
+  catch (e) { list.innerHTML = '<div class="board-empty"></div>'; list.firstChild.textContent = 'Could not load the leaderboard: ' + errMsg(e); return; }
+
+  const { rows, myRank } = data;
+  if (myRank == null) {
+    mine.innerHTML = `You're not on the board yet. Beat the robot at <b>checkpoint ${fmt(nextCheckpointAfter(me.saved_square))}</b> to get ranked.`;
+  } else {
+    mine.innerHTML = `You're <b>#${fmt(myRank)}</b>, with checkpoint <b>${fmt(me.saved_square)}</b> beaten.` +
+      (myRank > rows.length ? ' Keep going to break into the top 100!' : '');
+  }
+
+  list.innerHTML = '';
+  if (!rows.length) {
+    list.innerHTML = '<div class="board-empty">Nobody has beaten a checkpoint yet. Be the first!</div>';
+    return;
+  }
+  const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+  for (const r of rows) {
+    const row = document.createElement('div');
+    row.className = 'board-row' + (r.is_me ? ' me' : '');
+    const rank = document.createElement('div');
+    rank.className = 'board-rank' + (medals[r.rank] ? ' medal' : '');
+    rank.textContent = medals[r.rank] || r.rank;
+    const name = document.createElement('div');
+    name.className = 'board-name';
+    name.textContent = r.display_name;
+    if (r.is_me) { const you = document.createElement('small'); you.textContent = 'you'; name.append(you); }
+    const cp = document.createElement('div');
+    cp.className = 'board-cp';
+    cp.innerHTML = '<span>checkpoint </span>';
+    cp.append(fmt(r.saved_square));
+    row.append(rank, name, cp);
+    list.append(row);
+  }
+  list.querySelector('.me')?.scrollIntoView({ block: 'center' });
+}
+
 // ---------------- account ----------------
 async function openAccount() {
   held.length = 0;
@@ -583,7 +628,7 @@ async function openAccount() {
 }
 function friendlyAuthError(m) {
   if (/signups? not allowed/i.test(m)) return 'No walker is saved with that email yet. Use "Save my walker" above to attach it to this one.';
-  if (/rate limit|too many|security purposes/i.test(m)) return 'Too many emails sent just now. Please wait a minute and try again.';
+  if (/rate limit|too many|security purposes/i.test(m)) return 'Too many emails have been sent recently. Please wait a few minutes (up to an hour) and try again.';
   if (/already (been )?registered|already exists/i.test(m)) return 'That email already belongs to another walker. Use the sign-in link below instead.';
   if (/invalid/i.test(m) && /email/i.test(m)) return 'That email address doesn\'t look right.';
   return m;
@@ -634,6 +679,9 @@ function bindUi() {
   for (const b of $('rpsChoices').children) b.onclick = () => playRps(b.dataset.c);
   $('rpsClose').onclick = () => $('rpsDlg').close();
   $('rpsDlg').addEventListener('close', updateHud);
+
+  $('btnBoard').onclick = openBoard;
+  $('boardClose').onclick = () => $('boardDlg').close();
 
   $('btnShop').onclick = async () => {
     held.length = 0;

@@ -97,6 +97,7 @@ You can also browse and delete notes directly in Supabase: **Table Editor → co
 | Shop | Sunglasses 1,000 · Scarf 2,000 · Fun Hat 3,000 | `shop_items` insert in `schema.sql` (+ fallback in `constants.js`) |
 | Art | Biome and art style can change every 150 squares; 6 biomes × 4 styles (Storybook, Pixel, Sketchbook, Neon) | `ZONE_SIZE`, `js/world.js`, `js/render.js` |
 | Oddities | ~1 in 90 squares has a sign, bench, giant duck, statue, mailbox or arch | `ODDITIES` in `js/world.js` |
+| Leaderboard | Top 100 by furthest checkpoint beaten; ties go to whoever got there first. Shows your own rank too. | `leaderboard` / `my_rank` in `schema.sql` |
 | Nearby players | Supabase Realtime presence; walkers within 15 squares are drawn with name tags | `joinPresence` in `js/api-online.js` |
 | World seed | Same world for everyone. Change `WORLD_SEED` to regenerate it. | `js/world.js` |
 

@@ -163,7 +163,8 @@ export function createDemoApi() {
         onChange(bots.map((b) => ({ ...b })));
       }, 450);
     },
-    updatePresence(payload) { me = payload; },
+    updatePresence(payload) { me = { ...me, ...payload }; },
+    sendPosition(payload) { me = { ...me, ...payload }; },
 
     async linkEmail() { fail('Accounts need Supabase. Follow the README to connect it.'); },
     async signIn() { fail('Accounts need Supabase. Follow the README to connect it.'); },

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Square One</title>
+  <meta name="description" content="Start at square one. Walk forever. Leave a note for whoever comes next." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='6' y='6' width='52' height='52' rx='12' fill='%23ffb35c'/%3E%3Ctext x='32' y='44' font-size='32' font-family='Arial' font-weight='900' text-anchor='middle' fill='%23402010'%3E1%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <canvas id="game" aria-label="The path"></canvas>
+
+  <div id="loading" class="loading"><div class="loading-tile">1</div><p>Finding square one…</p></div>
+
+  <!-- HUD -->
+  <div class="hud" id="hud" hidden>
+    <div class="card hud-stats">
+      <div class="hud-square">Square <b id="sqNum">1</b></div>
+      <div class="hud-coins"><span class="coin"></span><b id="coins">0</b></div>
+      <div class="hud-sub" id="saveInfo"></div>
+      <div class="hud-sub" id="nextCp"></div>
+      <div class="hud-sub" id="nearby"></div>
+    </div>
+    <div class="hud-buttons">
+      <button class="btn" id="btnComments" title="Comments on this square (C)">Notes <span class="pill" id="cBadge">0</span></button>
+      <button class="btn" id="btnShop">Shop</button>
+      <button class="btn" id="btnAccount">You</button>
+      <button class="btn icon" id="btnOrient" title="Switch between left-right and up-down">⇅</button>
+    </div>
+  </div>
+
+  <div class="zone-banner" id="zoneBanner"></div>
+  <div class="caption" id="caption"></div>
+
+  <div class="cp-banner card" id="cpBanner" hidden>
+    <div><b>Checkpoint!</b> Beat the robot to save your progress here.</div>
+    <button class="btn primary" id="btnChallenge">Challenge <kbd>Enter</kbd></button>
+  </div>
+
+  <div class="hint" id="hint">Use <kbd>→</kbd> / <kbd>↑</kbd> to walk forward and <kbd>←</kbd> / <kbd>↓</kbd> to walk back</div>
+
+  <!-- Comments -->
+  <aside class="panel" id="comments" hidden>
+    <header class="panel-head">
+      <div>
+        <div class="panel-title">Square <span id="cSq">1</span></div>
+        <div class="panel-sub" id="cCap">0 / 100 notes</div>
+      </div>
+      <button class="x" id="cClose" aria-label="Close">×</button>
+    </header>
+    <div class="c-list" id="cList"></div>
+    <form class="c-form" id="cForm">
+      <textarea id="cInput" rows="2" maxlength="200" placeholder="Leave a note for whoever walks by…"></textarea>
+      <div class="c-foot">
+        <span id="cChars">0 / 200</span>
+        <button class="btn primary" id="cPost" type="submit">Post</button>
+      </div>
+      <div class="c-note" id="cNote"></div>
+    </form>
+  </aside>
+
+  <!-- Touch controls -->
+  <div class="touch" id="touch">
+    <button class="tbtn" data-dir="-1" aria-label="Walk back">◀</button>
+    <button class="tbtn" data-dir="1" aria-label="Walk forward">▶</button>
+  </div>
+
+  <!-- Rock paper scissors -->
+  <dialog id="rpsDlg" class="dlg">
+    <h2>Checkpoint <span id="rpsSq"></span></h2>
+    <p class="sub">One round of rock paper scissors against the robot. Win and your progress is saved here.</p>
+    <div class="arena">
+      <div class="fighter"><div class="hand" id="youHand">?</div><span>You</span></div>
+      <div class="vs">vs</div>
+      <div class="fighter"><div class="hand" id="botHand">🤖</div><span>Robot</span></div>
+    </div>
+    <p class="result" id="rpsResult">Choose wisely.</p>
+    <div class="choices" id="rpsChoices">
+      <button class="btn big" data-c="rock">✊ Rock</button>
+      <button class="btn big" data-c="paper">✋ Paper</button>
+      <button class="btn big" data-c="scissors">✌️ Scissors</button>
+    </div>
+    <div class="dlg-foot"><button class="btn ghost" id="rpsClose">Not now</button></div>
+  </dialog>
+
+  <!-- Shop -->
+  <dialog id="shopDlg" class="dlg">
+    <h2>Shop</h2>
+    <p class="sub">You have <b><span class="coin"></span><span id="shopCoins">0</span></b>. You earn 1 coin for every new square you reach.</p>
+    <div class="shop">
+      <canvas id="shopPreview" width="180" height="180"></canvas>
+      <div class="shop-list" id="shopList"></div>
+    </div>
+    <div class="dlg-foot"><button class="btn" id="shopClose">Done</button></div>
+  </dialog>
+
+  <!-- Account -->
+  <dialog id="acctDlg" class="dlg">
+    <h2>Your walker</h2>
+    <label class="field">Name
+      <div class="row"><input id="nameInput" maxlength="20" autocomplete="off" /><button class="btn" id="nameSave">Save</button></div>
+    </label>
+    <div id="acctBody"></div>
+    <div class="dlg-foot"><button class="btn" id="acctClose">Done</button></div>
+  </dialog>
+
+  <div class="toasts" id="toasts"></div>
+  <div class="demo-badge" id="demoBadge" hidden>Demo mode · saved in this browser only</div>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

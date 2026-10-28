@@ -10,5 +10,5 @@
 //  your own browser and the other players you see are fake bots.
 // =====================================================================
 
-export const SUPABASE_URL = '';
-export const SUPABASE_KEY = '';
+export const SUPABASE_URL = 'https://cyzivqpgpynxafwamzsb.supabase.co';
+export const SUPABASE_KEY = 'sb_publishable_-XmcHXJkDXLDLmxJ-UJo6Q_JDK1zyV8';
